@@ -1,38 +1,37 @@
 <template>
 	<div>
 		<h1>Whisper Example Chat Application</h1>
+		<!-- <button @click="get_key_id_pair_from_pvt_key('0x80153F513EA70A9E0A32AB59D0D61281DA769D985D148B3140FF7AB1356D899F')">get keyid from pvtkey</button> -->
 		<div v-if="!configured">
-			<input type="checkbox" v-model="asym" /> Asymmetric<br>
-			<asymmetric-key-config v-if="asym" :pub-key="asymPubKey" :key-id="asymKeyId"></asymmetric-key-config>
-			<symmetric-key-config v-else @update-sym-key="updateSymKey" :sym-key-id="symKeyId"></symmetric-key-config>
+			enter your key-id pair : <input v-model="asymKeyId" @keyup.enter="extractPUBKEY" />
+		
+			<asymmetric-key-config :pub-key="asymPubKey" :key-id="asymKeyId"></asymmetric-key-config>
 
 			username: <input v-model="name" /><br>
 			<button @click="configWithKey" >Start</button>
-			<button @click="getKeyPair" >GetKeyPair</button>
 		</div>
 		<div v-else>
-			<div v-if="asym">
+			<div>
 				My publick key: {{asymPubKey}}
 				Recipient's public key: <input  v-model="recipientPubKey" />
 			</div>
-			<div v-else>
-				Key: {{symKeyId}}
-			</div>
+	
 			<p v-for="(m,i) of msgs" v-bind:key="i" >
 				<b>{{m.name}}</b>: {{m.text}}
 			</p>
 			Please type a message: <input v-model="text" @keyup.enter="sendMessage" />
 			<button @click="sendMessage">Send</button>
+
 		</div>
 	</div>
 </template>
 
 <script>
 import Web3 from 'web3';
-import SymmetricKeyConfig from './SymmetricKeyConfig.vue';import AsymmetricKeyConfig from './AsymmetricKeyConfig.vue';
+import AsymmetricKeyConfig from './AsymmetricKeyConfig.vue';
 import {decodeFromHex, encodeToHex} from './hexutils';
 
-const defaultRecipientPubKey = "0x04ffb2647c10767095de83d45c7c0f780e483fb2221a1431cb97a5c61becd3c22938abfe83dd6706fc1154485b80bc8fcd94aea61bf19dd3206f37d55191b9a9c4";
+const defaultRecipientPubKey = "";
 const defaultTopic = "0x5a4ea131";
 
 const sec=""
@@ -49,14 +48,12 @@ export default {
 			name: "",
 			asymKeyId: null,
 			sympw: "",
-			asym: true,
 			configured: false,
 			topic: defaultTopic,
 			recipientPubKey: defaultRecipientPubKey,
 			asymPubKey: ""
 		};
-		this.shh.addPrivateKey('0x3EAD23534B593793F925836D5A9AAF2181D7B734BB5E327EC8CA07B025070C9A')
-			.then(id=>this.shh.getPublicKey(id).then(pubKey => console.log('pk',pubKey)).catch(console.log));
+
 		// this.shh.newKeyPair().then(id => {
 		// 	console.log('dfsdddsdf');
 			
@@ -70,9 +67,10 @@ export default {
 		return data;
 	},
 
-	components: {AsymmetricKeyConfig, SymmetricKeyConfig},
+	components: {AsymmetricKeyConfig},
 
 	methods: {
+		
 	
 		sendMessage() {
 			let msg = {
@@ -90,25 +88,29 @@ export default {
 				payload: encodeToHex(JSON.stringify(msg)),
 			};
 
-			if (this.asym) {
-				postData.pubKey = this.recipientPubKey;
-				postData.sig = this.asymKeyId;
-			} else
-				postData.symKeyID = this.symKeyId;
-
+			postData.pubKey = this.recipientPubKey;
+			postData.sig = this.asymKeyId;
+			
 			this.shh.post(postData);
 
 			this.text = "";
 		},
+		extractPUBKEY(){
+				console.log(this.shh);
+					
+					this.shh.getPublicKey(this.asymKeyId).then(pubKey =>{
+							this.asymPubKey=pubKey	;
+							console.log('pub key extracted',this.asymPubKey);
 
-		updateSymKey(sympw) {
-			this.shh.generateSymKeyFromPassword(sympw).then(symKeyID => this.symKeyId = symKeyID)
+					} );
 		},
-		getKeyPair(){
-			this.shh.addPrivateKey('0x3EAD23534B593793F925836D5A9AAF2181D7B734BB5E327EC8CA07B025070C9A')
-				.then(console.log);
-		}
-		,
+		get_key_id_pair_from_pvt_key(pvtkey){
+			this.shh.addPrivateKey(pvtkey)
+					.then(id=>{
+						console.log(id);
+					}).catch(console.log);
+		},
+		
 		configWithKey() {
 			// TODO use a form
 			if (!this.name || this.name.length == 0) {
@@ -117,29 +119,23 @@ export default {
 			}
 
 			let filter = {
-				topics: ['0xdeadbeef']
+				topics: ['0x07678231']
 			};
 
-			if (this.asym) {
-				if(!this.asymKeyId) {
-					alert("No valid asymmetric key");
+			if(!this.asymKeyId) {
+					alert("No valid asymmetric key",this.asymKeyId);
 				return;
 			}
 
-				filter.privateKeyID = this.asymKeyId;
-			} else {
-				if (!this.symKeyId || this.symKeyId.length == 0) {
-					alert("please enter a pasword to generate a key!");
-				return;
-			}
-
-				filter.symKeyID = this.symKeyId;
-			}
-
+		    filter.privateKeyID = this.asymKeyId;
+			
 			this.msgFilter = this.shh.newMessageFilter(filter).then(filterId => {
 				setInterval(() => {
+					console.log('setInter');
 					this.shh.getFilterMessages(filterId).then(messages => {
+						console.log('filter donr');
 						for (let msg of messages) {
+							console.log('inside');
 							let message = decodeFromHex(msg.payload);
 							this.msgs.push({
 								name: message.name,
